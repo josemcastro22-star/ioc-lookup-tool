@@ -1,0 +1,42 @@
+name: IOC Threat Intel Scan
+
+on:
+  push:
+    paths:
+      - 'sample_iocs.txt'   # Auto-run when IOC list is updated
+      - 'ioc_lookup.py'
+  workflow_dispatch:         # Manual trigger from GitHub UI or CLI
+
+jobs:
+  ioc-scan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run IOC Lookup Tool
+        env:
+          VIRUSTOTAL_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
+          ABUSEIPDB_API_KEY:  ${{ secrets.ABUSEIPDB_API_KEY }}
+        run: |
+          python ioc_lookup.py --file sample_iocs.txt --out reports/
+          echo "Scan complete."
+
+      - name: Print Markdown Report
+        run: cat reports/ioc_report_*.md
+
+      - name: Upload Reports as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ioc-report-${{ github.run_number }}
+          path: reports/
+          retention-days: 30
