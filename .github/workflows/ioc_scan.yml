@@ -28,7 +28,9 @@ jobs:
           VIRUSTOTAL_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
           ABUSEIPDB_API_KEY:  ${{ secrets.ABUSEIPDB_API_KEY }}
         run: |
-          python ioc_lookup.py --file sample_iocs.txt --out reports/
+          # Exit code 2 = HIGH/CRITICAL IOCs detected (expected, not an error)
+          # Exit code 1 = real error (bad input, missing file, etc.)
+          python ioc_lookup.py --file sample_iocs.txt --out reports/ || [ $? -eq 2 ]
           echo "Scan complete."
 
       - name: Print Markdown Report
