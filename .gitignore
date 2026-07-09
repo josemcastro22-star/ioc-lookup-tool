@@ -1,0 +1,5 @@
+reports/
+splunk_events/
+__pycache__/
+*.pyc
+.env
