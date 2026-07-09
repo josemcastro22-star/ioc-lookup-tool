@@ -1,8 +1,24 @@
-# Threat Intel IOC Lookup Tool
+# Threat Intel IOC Lookup Tool + Splunk SIEM Integration
 
-A Python-based threat intelligence enrichment tool that mirrors the triage workflow used in managed detection & response (MDR/SOC) operations. Given a list of Indicators of Compromise (IOCs), it queries multiple threat intelligence sources and generates a structured incident report.
+A production threat intelligence pipeline that enriches suspicious IPs, domains, and file hashes against multiple threat databases, feeds results into a Splunk SIEM, and triggers automated alerts when HIGH or CRITICAL indicators are detected.
 
-Built as a portfolio project to demonstrate SOC analyst skills — IOC triage, threat enrichment, and automated detection pipelines.
+Built to mirror the triage workflow used in real SOC and MDR operations.
+
+---
+
+## Architecture
+
+```
+IOC Input
+   ↓
+ioc_lookup.py  →  reports/ioc_report_YYYY-MM-DD.json
+                         ↓
+               splunk_feed.py  →  splunk_events/feed.jsonl
+                                         ↓
+                                    Splunk SIEM
+                                    ├── Dashboard (severity breakdown)
+                                    └── Alert (CRITICAL/HIGH → triggered alert)
+```
 
 ---
 
@@ -12,6 +28,7 @@ Built as a portfolio project to demonstrate SOC analyst skills — IOC triage, t
 - **Auto-detects IOC type** — IPv4, domain, MD5, SHA1, SHA256
 - **Severity classification** — CRITICAL / HIGH / MEDIUM / LOW / CLEAN
 - **Dual output** — structured JSON + readable Markdown incident report
+- **Splunk integration** — live SIEM dashboard + hourly alert on HIGH/CRITICAL hits
 - **CI/CD pipeline** — GitHub Actions runs a scan automatically on every push
 - **Exit codes for alerting** — exits with code 2 if any HIGH/CRITICAL IOCs detected
 
@@ -98,13 +115,44 @@ SUMMARY
 
 ---
 
+## Splunk Setup
+
+```bash
+# Start Splunk via Docker
+docker run -d -p 8000:8000 \
+  -e SPLUNK_START_ARGS='--accept-license' \
+  -e SPLUNK_GENERAL_TERMS='--accept-sgt-current-at-splunk-com' \
+  -e SPLUNK_PASSWORD='your_password' \
+  -v $(pwd)/splunk_events:/splunk-events \
+  --name splunk splunk/splunk:latest
+
+# Normalize reports into SIEM-ready JSONL (one event per IOC)
+python3 splunk_feed.py
+
+# In Splunk UI: Add Data → Monitor → Files & Directories → /splunk-events
+```
+
+Dashboard SPL query:
+```
+source="/splunk-events/feed.jsonl" | stats count by severity
+```
+
+Alert query (runs hourly, triggers if results > 0):
+```
+source="/splunk-events/feed.jsonl" severity=CRITICAL OR severity=HIGH
+```
+
+---
+
 ## Project Structure
 
 ```
 ioc-lookup-tool/
-├── ioc_lookup.py           # Main tool
+├── ioc_lookup.py           # Main enrichment tool
+├── splunk_feed.py          # Splunk connector (converts reports to JSONL)
 ├── sample_iocs.txt         # Demo IOCs for testing
-├── reports/                # Generated reports (gitignored)
+├── reports/                # JSON + Markdown reports (gitignored)
+├── splunk_events/          # SIEM feed (gitignored)
 └── .github/
     └── workflows/
         └── ioc_scan.yml    # CI/CD pipeline
